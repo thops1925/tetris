@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
 
-// 8x8 grid, classic Tetris blocks only, easy mode, persistent top score!
 const BOX_COLS = 8;
 const BOX_ROWS = 8;
 const BLOCK_MOBILE = 40;
@@ -68,7 +67,6 @@ function getRandomInt(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-// Only call this in useEffect/client
 function placeRandomTetrises(
   board: (string | null)[][],
   count: number
@@ -197,7 +195,6 @@ function anyPieceFits(board: (string | null)[][], pieces: Piece[]): boolean {
   return false;
 }
 
-// Touch helpers
 type TouchState = {
   dragging: boolean;
   dragIndex: number;
@@ -212,18 +209,8 @@ type TouchState = {
 const TOP_SCORE_KEY = "easy-tetris-top-score-v1";
 
 export default function PuzzleBox() {
-  // Only read window size on client
   const [block, setBlock] = useState(BLOCK_DESKTOP);
-  useEffect(() => {
-    function handleResize() {
-      setBlock(window.innerWidth < 600 ? BLOCK_MOBILE : BLOCK_DESKTOP);
-    }
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  const [mounted, setMounted] = useState(false);
+  const [hydrated, setHydrated] = useState(false); // Ensures no SSR mismatch
   const [pieces, setPieces] = useState<Piece[]>([]);
   const [box, setBox] = useState<(string | null)[][]>(emptyBoard());
   const [score, setScore] = useState(0);
@@ -243,47 +230,57 @@ export default function PuzzleBox() {
   const [touchDrag, setTouchDrag] = useState<TouchState>(null);
   const boxRef = useRef<SVGSVGElement>(null);
 
+  // Hydration: Only render after client is ready
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+
+  // Responsive block size
+  useEffect(() => {
+    if (!hydrated) return;
+    function handleResize() {
+      setBlock(window.innerWidth < 600 ? BLOCK_MOBILE : BLOCK_DESKTOP);
+    }
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [hydrated]);
+
   // Load top score from device storage
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      let top = 0;
-      try {
-        const saved = localStorage.getItem(TOP_SCORE_KEY);
-        if (saved && !isNaN(+saved)) top = +saved;
-      } catch {}
-      setTopScore(top);
-    }
-  }, []);
+    if (!hydrated) return;
+    let top = 0;
+    try {
+      const saved = localStorage.getItem(TOP_SCORE_KEY);
+      if (saved && !isNaN(+saved)) top = +saved;
+    } catch {}
+    setTopScore(top);
+  }, [hydrated]);
 
-  // Hydration-SAFE: randomize board ONLY on client after mount!
+  // Randomize board ONLY on client after mount (hydrated)
   useEffect(() => {
-    if (mounted) {
-      let initialBoard = emptyBoard();
-      initialBoard = placeRandomTetrises(initialBoard, 3); // 3 random tetris blocks at start
-      setBox(initialBoard);
-      setPieces(Array.from({ length: 3 }, () => randomTetromino()));
-      setScore(0);
-      setGameOver(false);
-    }
-    // eslint-disable-next-line
-  }, [mounted]);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+    if (!hydrated) return;
+    let initialBoard = emptyBoard();
+    initialBoard = placeRandomTetrises(initialBoard, 3); // 3 random tetris blocks at start
+    setBox(initialBoard);
+    setPieces(Array.from({ length: 3 }, () => randomTetromino()));
+    setScore(0);
+    setGameOver(false);
+  }, [hydrated]);
 
   // Save top score if game over and you beat it
   useEffect(() => {
-    if (gameOver && score > topScore && typeof window !== "undefined") {
+    if (!hydrated) return;
+    if (gameOver && score > topScore) {
       try {
         localStorage.setItem(TOP_SCORE_KEY, score.toString());
       } catch {}
       setTopScore(score);
     }
-  }, [gameOver, score, topScore]);
+  }, [gameOver, score, topScore, hydrated]);
 
   useEffect(() => {
-    if (!mounted || gameOver) return;
+    if (!hydrated || gameOver) return;
     if (pieces.length === 0) {
       const newPieces = Array.from({ length: 3 }, () => randomTetromino());
       if (!anyPieceFits(box, newPieces)) {
@@ -294,7 +291,7 @@ export default function PuzzleBox() {
     } else {
       if (!anyPieceFits(box, pieces)) setGameOver(true);
     }
-  }, [pieces, box, mounted, gameOver]);
+  }, [pieces, box, hydrated, gameOver]);
 
   // Mouse drag logic
   useEffect(() => {
@@ -450,7 +447,7 @@ export default function PuzzleBox() {
     setGameOver(false);
   }
 
-  if (!mounted) return null;
+  if (!hydrated) return null;
   const isMobile =
     typeof window !== "undefined" ? window.innerWidth < 600 : false;
 
