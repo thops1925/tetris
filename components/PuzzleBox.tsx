@@ -46,16 +46,6 @@ const COLORS = {
   J: "url(#cJ)",
 };
 
-const FLAT_COLORS = {
-  I: "#00bcd4",
-  L: "#ff9800",
-  O: "#fff176",
-  T: "#ba68c8",
-  S: "#66bb6a",
-  Z: "#ef5350",
-  J: "#1976d2",
-};
-
 type TetrominoKey = keyof typeof TETROMINOS;
 type Piece = {
   shape: number[][];
@@ -65,7 +55,7 @@ type Piece = {
 
 function uniqueRandomTetrominos(n = 3): Piece[] {
   const keys = Object.keys(TETROMINOS) as TetrominoKey[];
-  const shuffled = keys.sort(() => Math.random() - 0.5).slice(0, n);
+  const shuffled = [...keys].sort(() => Math.random() - 0.5).slice(0, n);
   return shuffled.map((name) => ({
     shape: TETROMINOS[name].map((row) => [...row]),
     name,
@@ -88,22 +78,12 @@ function placeRandomTetrises(
   let newBoard = board.map((row) => [...row]);
   let placements = 0;
   let safety = 0;
-
-  // Make game easy: fewer obstacles, never block the first row or column
   while (placements < count && safety < 200) {
     const piece = uniqueRandomTetrominos(1)[0];
     const shape = piece.shape;
     const positions: { x: number; y: number }[] = [];
-    for (
-      let y = 1;
-      y <= BOX_ROWS - shape.length;
-      y++ // start at y=1 for more open space
-    )
-      for (
-        let x = 1;
-        x <= BOX_COLS - shape[0].length;
-        x++ // start at x=1
-      )
+    for (let y = 1; y <= BOX_ROWS - shape.length; y++)
+      for (let x = 1; x <= BOX_COLS - shape[0].length; x++)
         positions.push({ x, y });
     for (let i = positions.length - 1; i > 0; i--) {
       const j = getRandomInt(0, i);
@@ -244,32 +224,29 @@ export default function PuzzleBox() {
     index: number;
     offsetX: number;
     offsetY: number;
-    mouseX: number;
-    mouseY: number;
+    mouseX?: number;
+    mouseY?: number;
     shape: number[][];
     color: string;
   } | null>(null);
 
   const [touchDrag, setTouchDrag] = useState<TouchState>(null);
 
-  // HOVER PREVIEW LOGIC
   const [hover, setHover] = useState<{
-    mouseX: number;
-    mouseY: number;
-    offsetX: number;
-    offsetY: number;
+    mouseX?: number;
+    mouseY?: number;
+    offsetX?: number;
+    offsetY?: number;
     shape: number[][];
     color: string;
   } | null>(null);
 
   const boxRef = useRef<SVGSVGElement>(null);
 
-  // Hydration: Only render after client is ready
   useEffect(() => {
     setHydrated(true);
   }, []);
 
-  // Responsive block size
   useEffect(() => {
     if (!hydrated) return;
     function handleResize() {
@@ -280,7 +257,6 @@ export default function PuzzleBox() {
     return () => window.removeEventListener("resize", handleResize);
   }, [hydrated]);
 
-  // Load top score from device storage
   useEffect(() => {
     if (!hydrated) return;
     let top = 0;
@@ -291,18 +267,16 @@ export default function PuzzleBox() {
     setTopScore(top);
   }, [hydrated]);
 
-  // Randomize board ONLY on client after mount (hydrated)
   useEffect(() => {
     if (!hydrated) return;
     let initialBoard = emptyBoard();
-    initialBoard = placeRandomTetrises(initialBoard, 2); // Only 2 obstacles for easy mode
+    initialBoard = placeRandomTetrises(initialBoard, 2);
     setBox(initialBoard);
     setPieces(uniqueRandomTetrominos(3));
     setScore(0);
     setGameOver(false);
   }, [hydrated]);
 
-  // Save top score if game over and you beat it
   useEffect(() => {
     if (!hydrated) return;
     if (gameOver && score > topScore) {
@@ -313,7 +287,6 @@ export default function PuzzleBox() {
     }
   }, [gameOver, score, topScore, hydrated]);
 
-  // Piece refill and game over detection
   useEffect(() => {
     if (!hydrated || gameOver) return;
     if (pieces.length === 0) {
@@ -328,7 +301,6 @@ export default function PuzzleBox() {
     }
   }, [pieces, box, hydrated, gameOver]);
 
-  // Mouse drag logic
   useEffect(() => {
     if (!drag) return;
     function onMouseMove(e: MouseEvent) {
@@ -342,11 +314,15 @@ export default function PuzzleBox() {
       );
     }
     function onMouseUp() {
-      if (!boxRef.current || !drag) {
+      if (
+        !boxRef.current ||
+        !drag ||
+        typeof drag.mouseX === "undefined" ||
+        typeof drag.mouseY === "undefined"
+      ) {
         setDrag(null);
         return;
       }
-      // Calculate drop
       const rect = boxRef.current.getBoundingClientRect();
       const pieceWidth = drag.shape[0].length;
       const pieceHeight = drag.shape.length;
@@ -386,7 +362,6 @@ export default function PuzzleBox() {
     };
   }, [drag, box, block]);
 
-  // Touch drag logic
   useEffect(() => {
     if (!touchDrag) return;
     function onTouchMove(e: TouchEvent) {
@@ -401,7 +376,12 @@ export default function PuzzleBox() {
       );
     }
     function onTouchEnd() {
-      if (!boxRef.current || !touchDrag) {
+      if (
+        !boxRef.current ||
+        !touchDrag ||
+        typeof touchDrag.touchX === "undefined" ||
+        typeof touchDrag.touchY === "undefined"
+      ) {
         setTouchDrag(null);
         return;
       }
@@ -496,7 +476,6 @@ export default function PuzzleBox() {
     setGameOver(false);
   }
 
-  // Hint logic: show faint previews at all valid drop locations for current piece
   function renderHints(piece: Piece) {
     const hints = [];
     for (let py = 0; py <= BOX_ROWS - piece.shape.length; ++py) {
@@ -669,7 +648,6 @@ export default function PuzzleBox() {
             }}
             onMouseLeave={() => setHover(null)}
           >
-            {/* SVG gradients for pro look */}
             <defs>
               <linearGradient id="cI" x1="0" x2="1" y1="0" y2="1">
                 <stop offset="0%" stopColor="#00bcd4" />
@@ -701,7 +679,6 @@ export default function PuzzleBox() {
               </linearGradient>
             </defs>
 
-            {/* Board cells */}
             {box.map((row, y) =>
               row.map((cell, x) => (
                 <rect
@@ -723,30 +700,34 @@ export default function PuzzleBox() {
               ))
             )}
 
-            {/* Hints for all valid positions for current piece */}
             {!drag && !touchDrag && !gameOver && pieces.length > 0
               ? renderHints(pieces[0])
               : null}
 
-            {/* Drag/touch/hover preview, always above cursor/finger, bottom center */}
             {(drag || touchDrag || hover) &&
               boxRef.current &&
               (() => {
                 const preview = drag || touchDrag || hover;
                 const rect = boxRef.current.getBoundingClientRect();
-                if (!rect) return null;
+                const mouseX =
+                  drag?.mouseX ?? touchDrag?.touchX ?? hover?.mouseX;
+                const mouseY =
+                  drag?.mouseY ?? touchDrag?.touchY ?? hover?.mouseY;
+                const offsetX =
+                  drag?.offsetX ?? touchDrag?.offsetX ?? hover?.offsetX ?? 0;
+                const offsetY =
+                  drag?.offsetY ?? touchDrag?.offsetY ?? hover?.offsetY ?? 0;
+                if (
+                  !rect ||
+                  !preview ||
+                  typeof mouseX === "undefined" ||
+                  typeof mouseY === "undefined"
+                )
+                  return null;
+
                 const pieceWidth = preview.shape[0].length;
                 const pieceHeight = preview.shape.length;
-                const mouseX =
-                  drag?.mouseX || touchDrag?.touchX || hover?.mouseX;
-                const mouseY =
-                  drag?.mouseY || touchDrag?.touchY || hover?.mouseY;
-                const offsetX =
-                  drag?.offsetX || touchDrag?.offsetX || hover?.offsetX || 0;
-                const offsetY =
-                  drag?.offsetY || touchDrag?.offsetY || hover?.offsetY || 0;
 
-                // Bottom center: X is cursor - half tetromino width, Y is cursor - piece height + 1
                 const px = Math.round(
                   (mouseX - rect.left - offsetX) / block - pieceWidth / 2
                 );
@@ -797,7 +778,6 @@ export default function PuzzleBox() {
               })()}
           </svg>
         </div>
-        {/* PIECES at bottom for phone */}
         <div
           style={{
             display: "flex",
@@ -843,7 +823,6 @@ export default function PuzzleBox() {
               onMouseDown={(e) => onPieceMouseDown(e, i)}
               onTouchStart={(e) => onPieceTouchStart(e, i)}
             >
-              {/* Use gradients for pro look */}
               {p.shape.map((row, y) =>
                 row.map(
                   (val, x) =>
