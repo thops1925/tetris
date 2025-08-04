@@ -492,7 +492,7 @@ export default function PuzzleBox() {
             textShadow: "0 2px 10px #000a",
           }}
         >
-          Christelle BOX
+          CHRISTELLE BOX
         </h1>
         <div
           style={{
