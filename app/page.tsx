@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useRef } from "react";
 
-// --- Constants ---
 const BOX_COLS = 8;
 const BOX_ROWS = 8;
 const BLOCK = 44;
@@ -85,11 +84,15 @@ function canPlace(
 }
 
 export default function PuzzleBox() {
-  // Initialize only on the client to avoid hydration mismatch
+  // Hydration-safe mount flag
   const [mounted, setMounted] = useState(false);
   React.useEffect(() => setMounted(true), []);
+
+  // Pieces and box state (initialized only after mount)
   const [pieces, setPieces] = useState<Piece[]>([]);
   const [box, setBox] = useState<(string | null)[][]>(emptyBoard());
+
+  // Drag state
   const [drag, setDrag] = useState<{
     index: number;
     offsetX: number;
@@ -101,14 +104,15 @@ export default function PuzzleBox() {
   } | null>(null);
   const boxRef = useRef<SVGSVGElement>(null);
 
-  // On first client render, set random pieces
+  // On mount, initialize pieces and box
   React.useEffect(() => {
-    if (!mounted) return;
-    setPieces(Array.from({ length: 3 }, () => randomTetromino()));
-    setBox(emptyBoard());
+    if (mounted) {
+      setPieces(Array.from({ length: 3 }, () => randomTetromino()));
+      setBox(emptyBoard());
+    }
   }, [mounted]);
 
-  // Mouse events for drag and drop
+  // Drag and drop event listeners
   React.useEffect(() => {
     if (!drag) return;
     function onMouseMove(e: MouseEvent) {
@@ -121,7 +125,7 @@ export default function PuzzleBox() {
           }
       );
     }
-    function onMouseUp(e: MouseEvent) {
+    function onMouseUp() {
       if (!boxRef.current || !drag) {
         setDrag(null);
         return;
@@ -130,7 +134,6 @@ export default function PuzzleBox() {
       const px = Math.round((drag.mouseX - rect.left - drag.offsetX) / BLOCK);
       const py = Math.round((drag.mouseY - rect.top - drag.offsetY) / BLOCK);
       if (canPlace(box, drag.shape, px, py)) {
-        // Place piece
         const newBox = box.map((row) => row.slice());
         drag.shape.forEach((row, y) =>
           row.forEach((val, x) => {
@@ -159,7 +162,6 @@ export default function PuzzleBox() {
   }, [drag, box]);
 
   function onPieceMouseDown(e: React.MouseEvent, i: number) {
-    // Find offset (inside SVG piece) of click
     const rect = (e.target as SVGElement)
       .closest("svg")!
       .getBoundingClientRect();
@@ -180,9 +182,8 @@ export default function PuzzleBox() {
     setPieces(Array.from({ length: 3 }, () => randomTetromino()));
   }
 
-  if (!mounted) return null; // Prevent hydration mismatch
+  if (!mounted) return null; // Prevent hydration errors!
 
-  // --- Render ---
   return (
     <div
       style={{
